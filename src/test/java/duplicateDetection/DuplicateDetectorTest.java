@@ -31,13 +31,18 @@ public class DuplicateDetectorTest {
 
             // Send test elements with timestamps
             testHarness.processElement(new Order(1L, 1, Side.SELL, 10_000, 100), 1000L);
+            testHarness.processElement(new Order(2L, 1, Side.SELL, 11_000, 110), 1000L);
+            testHarness.processElement(new Order(3L, 1, Side.SELL, 9_000, 120), 1000L);
+
 
             // Assert outputs
             var output = testHarness.extractOutputValues();
-            // assertEquals(...);
-            assertThat(output.size()).isEqualTo(1);
-            var alert = output.get(0);
-            assertThat(alert.getId()).isEqualTo(0);
+
+            assertThat(output.size()).isEqualTo(3);
+            for (Alert alert : output) {
+                assertThat(alert.getId()).isEqualTo(0);
+            }
+
         }
     }
 
