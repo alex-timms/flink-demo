@@ -18,13 +18,19 @@
 
 package duplicateDetection;
 
+import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.utils.OrderSource;
 import duplicateDetection.object.Order;
+import duplicateDetection.sinks.SuccessSink;
+import duplicateDetection.sinks.DLQSink;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.walkthrough.common.entity.Alert;
-import org.apache.flink.walkthrough.common.sink.AlertSink;
+
+
+import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
 /**
  * Skeleton code for the DataStream API walkthrough.
@@ -49,14 +55,16 @@ public class DuplicateDetectionJob {
                 WatermarkStrategy.noWatermarks(),
                 "orders");
 
-        DataStream<Alert> alerts = transactions
+        SingleOutputStreamOperator<Alert> alerts = transactions
             .keyBy(Order::getInstrumentId)
             .process(new DuplicateDetector())
             .name("duplicate-detector");
 
-        alerts
-            .addSink(new AlertSink())
+        alerts.sinkTo(new SuccessSink())
             .name("send-alerts");
+
+        DataStream<DeadLetterRecord> dlqStream = alerts.getSideOutput(DLQ_TAG);
+        dlqStream.sinkTo(new DLQSink()).name("DLQ-Sink");
 
         env.execute("Duplicate Detection");
     }

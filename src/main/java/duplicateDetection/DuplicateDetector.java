@@ -18,13 +18,19 @@
 
 package duplicateDetection;
 
+import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.object.Order;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.function.TriConsumer;
 import org.apache.flink.walkthrough.common.entity.Alert;
+
+import java.util.function.Function;
+
+import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
 /**
  * Skeleton code for implementing a fraud detector.
@@ -51,25 +57,37 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 			Context context,
 			Collector<Alert> collector) throws Exception {
 
-		// Get the current state for the current key
-		Boolean seenTransaction = flagState.get(order.getOrderId());
-		System.out.printf("Duplicate detector received order: %s\n", order);
+		try {
+			if (order.getOrderId() == 0) {
+				throw new Exception("Order ID is 0");
+			}
+			// Get the current state for the current key
+			Boolean seenTransaction = flagState.get(order.getOrderId());
+			System.out.printf("Duplicate detector received order: %s\n", order);
 
-		// Check if the flag is set
-		if (seenTransaction != null) {
-			if (seenTransaction) {
+			// Check if the flag is set
+			if (seenTransaction != null) {
+				if (seenTransaction) {
+					// Output an alert downstream
+					Alert alert = new Alert();
+					alert.setId(order.getOrderId());
+					collector.collect(alert);
+				}
+			} else {
+				System.out.println("Adding new order to cache: " + order);
+				flagState.put(order.getOrderId(), true);
 				// Output an alert downstream
 				Alert alert = new Alert();
-				alert.setId(order.getOrderId());
+				alert.setId(0);
 				collector.collect(alert);
 			}
-		} else {
-			System.out.println("Adding new order to cache: " + order);
-			flagState.put(order.getOrderId(), true);
-			// Output an alert downstream
-			Alert alert = new Alert();
-			alert.setId(0);
-			collector.collect(alert);
+		} catch (Exception e) {
+			DeadLetterRecord dlqRecord = new DeadLetterRecord(
+					order.toString(),
+					e.getMessage(),
+					System.currentTimeMillis()
+			);
+			context.output(DLQ_TAG,  dlqRecord);
 		}
 
 	}
