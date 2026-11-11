@@ -61,12 +61,15 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 				// Output an alert downstream
 				Alert alert = new Alert();
 				alert.setId(order.getOrderId());
-
 				collector.collect(alert);
 			}
 		} else {
 			System.out.println("Adding new order to cache: " + order);
 			flagState.put(order.getOrderId(), true);
+			// Output an alert downstream
+			Alert alert = new Alert();
+			alert.setId(0);
+			collector.collect(alert);
 		}
 
 	}
