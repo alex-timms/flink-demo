@@ -2,14 +2,18 @@ package duplicateDetection.object;
 
 import duplicateDetection.common.enums.Side;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
+@Setter
 public class Order {
-    public final long orderId;
-    public final int instrumentId;
-    public final Side side;
-    public final long price;
+    public long orderId;
+    public int instrumentId;
+    public Side side;
+    public long price;
     public long leavesQty;
+
+    public Order(){}
 
     public Order(long orderId, int instrumentId, Side side, long price, long qty) {
         this.orderId = orderId;
