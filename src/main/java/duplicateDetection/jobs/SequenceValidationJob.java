@@ -16,15 +16,23 @@
  * limitations under the License.
  */
 
-package frauddetection;
+package duplicateDetection.jobs;
 
+import duplicateDetection.processor.DuplicateDetector;
+import duplicateDetection.processor.GapDetector;
+import duplicateDetection.common.records.DeadLetterRecord;
+import duplicateDetection.common.utils.OrderSource;
+import duplicateDetection.object.Order;
+import duplicateDetection.sinks.SuccessSink;
+import duplicateDetection.sinks.DLQSink;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.walkthrough.common.sink.AlertSink;
 import org.apache.flink.walkthrough.common.entity.Alert;
-import org.apache.flink.walkthrough.common.entity.Transaction;
-import org.apache.flink.walkthrough.common.source.TransactionSource;
+
+
+import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
 /**
  * Skeleton code for the DataStream API walkthrough.
@@ -38,26 +46,36 @@ import org.apache.flink.walkthrough.common.source.TransactionSource;
  *       "include dependencies with 'Provided' scope"</li>
  * </ul>
  */
-public class FraudDetectionJob {
+public class SequenceValidationJob {
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        DataStream<Transaction> transactions = env
+        DataStream<Order> transactions = env
             .fromSource(
-                TransactionSource.unbounded(),
+                OrderSource.unbounded(),
                 WatermarkStrategy.noWatermarks(),
-                "transactions");
+                "orders")
+                .setParallelism(1);;
 
-        DataStream<Alert> alerts = transactions
-            .keyBy(Transaction::getAccountId)
-            .process(new FraudDetector())
-            .name("fraud-detector");
+        SingleOutputStreamOperator<Order> orders = transactions
+                .keyBy(Order::getInstrumentId)
+                .process(new GapDetector())
+                .name("gap-detector");
 
-        alerts
-            .addSink(new AlertSink())
+        SingleOutputStreamOperator<Alert> alerts = orders
+            .keyBy(Order::getInstrumentId)
+            .process(new DuplicateDetector())
+            .name("duplicate-detector");
+
+        alerts.sinkTo(new SuccessSink())
             .name("send-alerts");
 
-        env.execute("Fraud Detection");
+        DataStream<DeadLetterRecord> dlqStream = alerts.getSideOutput(DLQ_TAG);
+        dlqStream.sinkTo(new DLQSink()).name("DLQ-Sink");
+        DataStream<DeadLetterRecord> gapStream = orders.getSideOutput(DLQ_TAG);
+        gapStream.sinkTo(new DLQSink()).name("GAP-Sink");
+
+        env.execute("Duplicate Detection");
     }
 }
