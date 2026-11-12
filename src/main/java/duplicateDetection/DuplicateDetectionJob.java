@@ -55,7 +55,12 @@ public class DuplicateDetectionJob {
                 WatermarkStrategy.noWatermarks(),
                 "orders");
 
-        SingleOutputStreamOperator<Alert> alerts = transactions
+        SingleOutputStreamOperator<Order> orders = transactions
+                .keyBy(Order::getInstrumentId)
+                .process(new GapDetector())
+                .name("gap-detector");
+
+        SingleOutputStreamOperator<Alert> alerts = orders
             .keyBy(Order::getInstrumentId)
             .process(new DuplicateDetector())
             .name("duplicate-detector");
@@ -65,6 +70,8 @@ public class DuplicateDetectionJob {
 
         DataStream<DeadLetterRecord> dlqStream = alerts.getSideOutput(DLQ_TAG);
         dlqStream.sinkTo(new DLQSink()).name("DLQ-Sink");
+        DataStream<DeadLetterRecord> gapStream = orders.getSideOutput(DLQ_TAG);
+        gapStream.sinkTo(new DLQSink()).name("GAP-Sink");
 
         env.execute("Duplicate Detection");
     }

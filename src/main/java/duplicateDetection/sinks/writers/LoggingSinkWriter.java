@@ -13,7 +13,7 @@ public class LoggingSinkWriter implements SinkWriter<DeadLetterRecord> {
 
     @Override
     public void write(DeadLetterRecord deadLetterRecord, Context context) throws IOException, InterruptedException {
-        LOG.error(
+        LOG.info(
                 "DLQ Record - Payload: {}, Error: {}, Timestamp: {}",
                 deadLetterRecord.rawPayload(),
                 deadLetterRecord.errorMessage(),

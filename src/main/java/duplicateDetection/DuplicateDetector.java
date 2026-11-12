@@ -78,7 +78,7 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 				flagState.put(order.getOrderId(), true);
 				// Output an alert downstream
 				Alert alert = new Alert();
-				alert.setId(0);
+				alert.setId(0L);
 				collector.collect(alert);
 			}
 		} catch (Exception e) {
