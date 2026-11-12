@@ -55,7 +55,8 @@ public class SequenceValidationJob {
             .fromSource(
                 OrderSource.unbounded(),
                 WatermarkStrategy.noWatermarks(),
-                "orders");
+                "orders")
+                .setParallelism(1);;
 
         SingleOutputStreamOperator<Order> orders = transactions
                 .keyBy(Order::getInstrumentId)

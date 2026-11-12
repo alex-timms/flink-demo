@@ -60,18 +60,18 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 			}
 			// Get the current state for the current key
 			Boolean seenTransaction = flagState.get(order.getOrderId());
-			System.out.printf("Duplicate detector received order: %s\n", order);
 
 			// Check if the flag is set
 			if (seenTransaction != null) {
 				if (seenTransaction) {
 					// Output an alert downstream
+					System.out.printf("Duplicate detected for order %d\n", order.getOrderId());
 					Alert alert = new Alert();
 					alert.setId(order.getOrderId());
 					collector.collect(alert);
 				}
 			} else {
-				System.out.println("Adding new order to cache: " + order);
+				System.out.println("Processing Order and adding new order to cache: " + order);
 				flagState.put(order.getOrderId(), true);
 				// Output an alert downstream
 				Alert alert = new Alert();
