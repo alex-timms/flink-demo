@@ -16,22 +16,23 @@
  * limitations under the License.
  */
 
-package frauddetection;
+package duplicateDetection.processor;
 
+import duplicateDetection.common.records.DeadLetterRecord;
+import duplicateDetection.object.Order;
 import org.apache.flink.api.common.functions.OpenContext;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.walkthrough.common.entity.Alert;
-import org.apache.flink.walkthrough.common.entity.Transaction;
 
-import java.sql.Types;
+import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
 /**
  * Skeleton code for implementing a fraud detector.
  */
-public class FraudDetector extends KeyedProcessFunction<Long, Transaction, Alert> {
+public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Alert> {
 
 //	private static final long serialVersionUID = 1L;
 //
@@ -39,40 +40,52 @@ public class FraudDetector extends KeyedProcessFunction<Long, Transaction, Alert
 	private static final double LARGE_AMOUNT = 500.00;
 	private static final long ONE_MINUTE = 60 * 1000;
 
-	private transient ValueState<Boolean> flagState;
+	private transient MapState<Long, Boolean> flagState;
 
 	@Override
 	public void open(OpenContext openContext) {
-		ValueStateDescriptor<Boolean> flagDescriptor = new ValueStateDescriptor<>("flag", Boolean.class);
-		flagState = getRuntimeContext().getState(flagDescriptor);
+		MapStateDescriptor<Long, Boolean> flagDescriptor = new MapStateDescriptor<>("map", Long.class, Boolean.class);
+		flagState = getRuntimeContext().getMapState(flagDescriptor);
 	}
 
 	@Override
 	public void processElement(
-			Transaction transaction,
+			Order order,
 			Context context,
 			Collector<Alert> collector) throws Exception {
 
-		// Get the current state for the current key
-		Boolean lastTransactionWasSmall = flagState.value();
+		try {
+			if (order.getOrderId() == 0) {
+				throw new Exception("Order ID is 0");
+			}
+			// Get the current state for the current key
+			Boolean seenTransaction = flagState.get(order.getOrderId());
+			System.out.printf("Duplicate detector received order: %s\n", order);
 
-		// Check if the flag is set
-		if (lastTransactionWasSmall != null) {
-			if (transaction.getAmount() > LARGE_AMOUNT) {
+			// Check if the flag is set
+			if (seenTransaction != null) {
+				if (seenTransaction) {
+					// Output an alert downstream
+					Alert alert = new Alert();
+					alert.setId(order.getOrderId());
+					collector.collect(alert);
+				}
+			} else {
+				System.out.println("Adding new order to cache: " + order);
+				flagState.put(order.getOrderId(), true);
 				// Output an alert downstream
 				Alert alert = new Alert();
-				alert.setId(transaction.getAccountId());
-
+				alert.setId(0L);
 				collector.collect(alert);
 			}
-
-			// Clean up our state
-			flagState.clear();
+		} catch (Exception e) {
+			DeadLetterRecord dlqRecord = new DeadLetterRecord(
+					order.toString(),
+					e.getMessage(),
+					System.currentTimeMillis()
+			);
+			context.output(DLQ_TAG,  dlqRecord);
 		}
 
-		if (transaction.getAmount() < SMALL_AMOUNT) {
-			// Set the flag to true
-			flagState.update(true);
-		}
 	}
 }

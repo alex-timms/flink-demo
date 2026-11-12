@@ -16,8 +16,10 @@
  * limitations under the License.
  */
 
-package duplicateDetection;
+package duplicateDetection.jobs;
 
+import duplicateDetection.processor.DuplicateDetector;
+import duplicateDetection.processor.GapDetector;
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.utils.OrderSource;
 import duplicateDetection.object.Order;
@@ -44,7 +46,7 @@ import static duplicateDetection.common.tags.Tags.DLQ_TAG;
  *       "include dependencies with 'Provided' scope"</li>
  * </ul>
  */
-public class DuplicateDetectionJob {
+public class SequenceValidationJob {
 
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

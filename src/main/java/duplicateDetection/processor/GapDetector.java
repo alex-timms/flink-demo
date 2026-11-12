@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package duplicateDetection;
+package duplicateDetection.processor;
 
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.records.MissingOrderId;

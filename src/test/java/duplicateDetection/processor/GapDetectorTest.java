@@ -1,4 +1,4 @@
-package duplicateDetection;
+package duplicateDetection.processor;
 
 import duplicateDetection.common.enums.Side;
 import duplicateDetection.common.records.DeadLetterRecord;
@@ -9,7 +9,6 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
-import org.apache.flink.walkthrough.common.entity.Alert;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
