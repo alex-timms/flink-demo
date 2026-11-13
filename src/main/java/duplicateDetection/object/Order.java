@@ -26,10 +26,10 @@ public class Order {
     @Override
     public String toString() {
         return String.format(
-                "Order: %d (%s) for instrument: %d at price: %d for quantity: %d",
+                "{\"orderId\":%d,\"instrumentId\":%d,\"side\":\"%s\",\"price\":%d,\"leavesQty\":%d}",
                 orderId,
-                side,
                 instrumentId,
+                side,
                 price,
                 leavesQty
         );
