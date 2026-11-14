@@ -4,17 +4,18 @@ A small, non-production Apache Flink project that validates a stream of orders. 
 
 ## Status at a glance
 
-| Area | Status |
-|---|---|
-| Custom data generator source (with duplicates and gaps) | Done |
-| Gap-detection processor, with dead-letter (DLQ) output | Done |
-| Duplicate-detection processor, with alert output | Done |
-| Custom DLQ sink (logger) and alert sink and writers | Done |
-| Kafka source (read orders from a topic) | Next step |
-| Deserialisation processor (JSON string to `Order`) | Next step |
-| Kafka sink (deduplicated orders to an output topic) | Next step |
-| Integration test around the full pipeline | Planned |
-| Second job consuming the output feed and aggregating | Planned |
+| Area                                                    | Status  |
+|---------------------------------------------------------|---------|
+| Custom data generator source (with duplicates and gaps) | Done    |
+| Gap-detection processor, with dead-letter (DLQ) output  | Done    |
+| Duplicate-detection processor, with alert output        | Done    |
+| Custom DLQ sink (logger) and alert sink and writers     | Done    |
+| Kafka source (read orders from a topic)                 | Done    |
+| Deserialisation processor (JSON string to `Order`)      | Done    |
+| Integration test around the full pipeline               | Done    |
+| Kafka sink (deduplicated orders to an output topic)     | Planned |
+| Restructure Job to deduplicate identifying gaps         | Planned |
+| Second job consuming the output feed and aggregating    | Planned |
 
 ## Current functionality
 
