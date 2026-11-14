@@ -57,7 +57,7 @@ import static duplicateDetection.common.tags.Tags.DLQ_TAG;
  */
 public class SequenceValidationJob {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         var kafkaSource = KafkaConfig.kafkaSource();

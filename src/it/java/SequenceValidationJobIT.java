@@ -16,15 +16,11 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.walkthrough.common.entity.Alert;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
@@ -32,14 +28,17 @@ import org.testcontainers.utility.DockerImageName;
 import sink.Sinks;
 
 import java.time.Duration;
-import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static kafka.Consumer.kafkaConsumer;
 import static kafka.Producer.kafkaProducer;
+import static kafka.Utils.consumeKafkaOrders;
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end test: custom producer -> Kafka input topic -> Flink job -> Kafka output topic -> custom consumer.
@@ -95,10 +94,27 @@ class SequenceValidationJobIT {
         runJob();
 
         // then
-        List<Order> output = consumeOrders(3, Duration.ofSeconds(30));
-        assertEquals(List.of(order(1), order(2), order(4)), output);
-        assertEquals(List.of(new MissingOrderId(2L, 1)), Sinks.CollectingSink.results("dlq"));
-        assertEquals(1, Sinks.CollectingSink.results("alerts").size());
+        System.out.println("Orders In Sink");
+        System.out.println(Sinks.CollectingSink.results("Orders"));
+        List<Order> output = Sinks.CollectingSink.results("Orders")
+                .stream()
+                .map(Order.class::cast)
+                .sorted(Comparator.comparingInt(order -> Math.toIntExact(order.getOrderId())))
+                .toList();
+        List<DeadLetterRecord> dlq = Sinks.CollectingSink.results("DLQ")
+                .stream()
+                .map(DeadLetterRecord.class::cast)
+                .toList();
+        assertThat(output)
+                .usingRecursiveFieldByFieldElementComparator()
+                .containsExactlyInAnyOrderElementsOf(List.of(order(1), order(2), order(2), order(4)));
+        assertTrue(dlq.stream().allMatch(record -> "MissingOrderIdException".equals(record.errorMessage())));
+        List<Alert> alerts = Sinks.CollectingSink.results("Alert")
+                .stream()
+                .map(Alert.class::cast)
+                .toList();
+        assertEquals(4, alerts.size());
+        assertEquals(1, alerts.stream().filter(alert -> alert.getId() == 2L).count());
     }
 
     // ---- Custom producer: writes JSON strings to the job's source topic ----
@@ -138,30 +154,16 @@ class SequenceValidationJobIT {
 
 
         // setup Pipeline with every sink injected,
-        var pipeline = new Pipeline(source, env, new Sinks.CollectingSink<Order>("Orders"), new Sinks.CollectingSink<DeadLetterRecord>("DLQ"), new Sinks.CollectingSink<Alert>("Alert"));
+        var pipeline = new Pipeline(
+                source,
+                env,
+                new Sinks.CollectingSink<Order>("Orders"),
+                new Sinks.CollectingSink<DeadLetterRecord>("DLQ"),
+                new Sinks.CollectingSink<Alert>("Alert"));
         pipeline.run();
 
     }
 
-    // ---- Custom consumer: reads what the job wrote to the sink topic ----
-
-    private List<Order> consumeOrders(int expected, Duration timeout) throws Exception {
-        List<Order> received = new ArrayList<>();
-        long deadline = System.nanoTime() + timeout.toNanos();
-        kafkaConsumer.subscribe(List.of(outputTopic));
-
-        while (received.size() < expected && System.nanoTime() < deadline) {
-            for (ConsumerRecord<String, String> record : kafkaConsumer.poll(Duration.ofMillis(500))) {
-                received.add(MAPPER.readValue(record.value(), Order.class));
-            }
-        }
-        // Brief extra poll so a stray extra message (for example a leaked duplicate) fails the assertion.
-        for (ConsumerRecord<String, String> record : kafkaConsumer.poll(Duration.ofSeconds(2))) {
-            received.add(MAPPER.readValue(record.value(), Order.class));
-        }
-
-        return received;
-    }
 
 
     private static Order order(long id) {

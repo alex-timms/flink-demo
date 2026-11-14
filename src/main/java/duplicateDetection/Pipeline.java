@@ -31,7 +31,7 @@ public class Pipeline {
         this.alertSink = alertSink;
     }
 
-    public void run() {
+    public void run() throws Exception {
         DataStream<String> rawtransactions = env
                 .fromSource(
                         raw,
@@ -48,6 +48,9 @@ public class Pipeline {
                 .process(new GapDetector())
                 .name("gap-detector");
 
+        orders.sinkTo(mainSink)
+                .name("order-sink");
+
         SingleOutputStreamOperator<Alert> alerts = orders
                 .keyBy(Order::getInstrumentId)
                 .process(new DuplicateDetector())
@@ -61,5 +64,6 @@ public class Pipeline {
         DataStream<DeadLetterRecord> gapStream = orders.getSideOutput(DLQ_TAG);
         gapStream.sinkTo(dlqSink).name("GAP-Sink");
 
+        env.execute("sequence-validation-pipeline");
     }
 }

@@ -14,7 +14,6 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 public class DeserializeProcessorTest {
 
-
     @SneakyThrows
     @Test
     void test_processElement_NoGap() {
