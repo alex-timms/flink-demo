@@ -18,18 +18,27 @@
 
 package duplicateDetection.jobs;
 
+import duplicateDetection.Pipeline;
+import duplicateDetection.common.utils.StringOrderSource;
+import duplicateDetection.config.KafkaConfig;
+import duplicateDetection.processor.DeserializeProcessor;
 import duplicateDetection.processor.DuplicateDetector;
 import duplicateDetection.processor.GapDetector;
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.utils.OrderSource;
 import duplicateDetection.object.Order;
+import duplicateDetection.sinks.OrderSink;
 import duplicateDetection.sinks.SuccessSink;
 import duplicateDetection.sinks.DLQSink;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.connector.sink2.Sink;
+import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.walkthrough.common.entity.Alert;
+import org.apache.flink.walkthrough.common.sink.AlertSink;
 
 
 import static duplicateDetection.common.tags.Tags.DLQ_TAG;
@@ -51,31 +60,13 @@ public class SequenceValidationJob {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        DataStream<Order> transactions = env
-            .fromSource(
-                OrderSource.unbounded(),
-                WatermarkStrategy.noWatermarks(),
-                "orders")
-                .setParallelism(1);;
+        var kafkaSource = KafkaConfig.kafkaSource();
+        var kafkaSink = KafkaConfig.kafkaSink();
 
-        SingleOutputStreamOperator<Order> orders = transactions
-                .keyBy(Order::getInstrumentId)
-                .process(new GapDetector())
-                .name("gap-detector");
+        Pipeline pipeline = new Pipeline(kafkaSource, env, new OrderSink(), new DLQSink(), new SuccessSink());
+        pipeline.run();
 
-        SingleOutputStreamOperator<Alert> alerts = orders
-            .keyBy(Order::getInstrumentId)
-            .process(new DuplicateDetector())
-            .name("duplicate-detector");
-
-        alerts.sinkTo(new SuccessSink())
-            .name("send-alerts");
-
-        DataStream<DeadLetterRecord> dlqStream = alerts.getSideOutput(DLQ_TAG);
-        dlqStream.sinkTo(new DLQSink()).name("DLQ-Sink");
-        DataStream<DeadLetterRecord> gapStream = orders.getSideOutput(DLQ_TAG);
-        gapStream.sinkTo(new DLQSink()).name("GAP-Sink");
-
-        env.execute("Duplicate Detection");
     }
+
+
 }

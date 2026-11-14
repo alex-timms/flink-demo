@@ -120,6 +120,7 @@ public class GapDetectorTest {
             assertThat(orderOne.getOrderId()).isEqualTo(1);
             var orderTwo = output.getLast();
             assertThat(orderTwo.getOrderId()).isEqualTo(1);
+            System.out.println(orderOne.toString());
 
             ConcurrentLinkedQueue<StreamRecord<DeadLetterRecord>> dlqOutput = testHarness.getSideOutput(DLQ_TAG);
 

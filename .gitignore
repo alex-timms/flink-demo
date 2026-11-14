@@ -3,3 +3,5 @@ target/
 !.idea/runConfigurations/
 !.idea/runConfigurations/*.xml
 .vscode
+*.iml
+dependency-reduced-pom.xml
