@@ -1,16 +1,14 @@
-import duplicateDetection.Pipeline;
-import duplicateDetection.common.enums.Side;
-import duplicateDetection.common.records.DeadLetterRecord;
-import duplicateDetection.object.Order;
+import config.KafkaConfig;
+import demo.flink.Pipeline;
+import demo.flink.common.enums.Side;
+import demo.flink.common.records.DeadLetterRecord;
+import demo.flink.common.records.MissingOrderId;
+import demo.flink.config.ConfigLoader;
+import demo.flink.object.Order;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.connector.base.DeliveryGuarantee;
-import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
-import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.walkthrough.common.entity.Alert;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -24,25 +22,21 @@ import sink.Sinks;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
 import static kafka.Admin.createAdminClient;
 import static kafka.Consumer.kafkaConsumer;
 import static kafka.Container.createKafkaContainer;
 import static kafka.Producer.kafkaProducer;
+import static kafka.Utils.consumeKafkaOrders;
 import static kafka.Utils.createTopics;
 import static kafka.Utils.produceOrders;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static source.Sources.stringKafkaSource;
 
 @Slf4j
 @Testcontainers
 class SequenceValidationJobIT {
 
-    private static final String ORDERS_TAG = "ORDERS";
-    private static final String ALERT_TAG = "ALERT";
+    private static final String GAP_TAG = "GAP";
     private static final String DLQ_TAG = "DLQ";
 
     @Container
@@ -57,9 +51,8 @@ class SequenceValidationJobIT {
 
     @BeforeEach
     void setUp() throws Exception {
-        String suffix = UUID.randomUUID().toString();
-        inputTopic = "orders-in-" + suffix;
-        outputTopic = "orders-out-" + suffix;
+        inputTopic = ConfigLoader.get("inputTopic");
+        outputTopic = ConfigLoader.get("outputTopic");
 
         kafkaConsumer = kafkaConsumer(KAFKA.getBootstrapServers());
         kafkaProducer = kafkaProducer(KAFKA.getBootstrapServers());
@@ -72,6 +65,7 @@ class SequenceValidationJobIT {
     void shutDown() {
         Sinks.CollectingSink.clear();
         try {
+            adminClient.deleteTopics(List.of(inputTopic, outputTopic));
             kafkaConsumer.close();
             kafkaProducer.close();
             adminClient.close();
@@ -84,33 +78,43 @@ class SequenceValidationJobIT {
     void removesDuplicatesAndReportsGaps() throws Exception {
         //given
         var orders = List.of(order(1), order(2), order(2), order(4));
-
+        var expectedGap = new MissingOrderId(3, 1);
+        var expectedDuplicate = new DeadLetterRecord(
+                order(2).toString(),
+                "Duplicate order ID found",
+                System.currentTimeMillis()
+        );
         // when
         produceOrders(kafkaProducer, inputTopic, orders);
         runJob();
 
         // then
-        List<Order> output = Sinks.CollectingSink.results(ORDERS_TAG)
+        List<Order> output = consumeKafkaOrders(kafkaConsumer, 3, outputTopic)
                 .stream()
-                .map(Order.class::cast)
                 .sorted(Comparator.comparingLong(Order::getOrderId))
                 .toList();
         List<DeadLetterRecord> dlq = Sinks.CollectingSink.results(DLQ_TAG)
                 .stream()
                 .map(DeadLetterRecord.class::cast)
                 .toList();
+        List<MissingOrderId> gaps = Sinks.CollectingSink.results(GAP_TAG)
+                .stream()
+                .map(MissingOrderId.class::cast)
+                .toList();
         assertThat(output)
                 .usingRecursiveFieldByFieldElementComparator()
-                .containsExactlyInAnyOrderElementsOf(List.of(order(1), order(2), order(2), order(4)));
-        assertThat(dlq)
+                .containsExactlyInAnyOrderElementsOf(List.of(order(1), order(2), order(4)));
+        assertThat(gaps)
                 .isNotEmpty()
-                .allMatch(record -> "MissingOrderIdException".equals(record.errorMessage()));
-        List<Alert> alerts = Sinks.CollectingSink.results(ALERT_TAG)
-                .stream()
-                .map(Alert.class::cast)
-                .toList();
-        assertEquals(4, alerts.size());
-        assertEquals(1, alerts.stream().filter(alert -> alert.getId() == 2L).count());
+                .hasSize(1)
+                .isEqualTo(List.of(expectedGap));
+        assertThat(dlq)
+                .hasSize(1);
+        var dlqMessage =  dlq.getFirst();
+        assertThat(dlqMessage.errorMessage())
+                .isEqualTo(expectedDuplicate.errorMessage());
+        assertThat(dlqMessage.rawPayload())
+                .isEqualTo(expectedDuplicate.rawPayload());
     }
 
     // ---- Run the Flink job against the containerised Kafka ----
@@ -119,15 +123,17 @@ class SequenceValidationJobIT {
         // setup env
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // setup source
-        KafkaSource<String> source = stringKafkaSource(KAFKA.getBootstrapServers(), inputTopic);
+        KafkaSource<String> source = KafkaConfig.kafkaSource(KAFKA.getBootstrapServers());
+        KafkaSink<String> sink = KafkaConfig.kafkaSink(KAFKA.getBootstrapServers());
 
         // setup Pipeline with every sink injected,
         var pipeline = new Pipeline(
                 source,
                 env,
-                new Sinks.CollectingSink<Order>(ORDERS_TAG),
+                sink,
                 new Sinks.CollectingSink<DeadLetterRecord>(DLQ_TAG),
-                new Sinks.CollectingSink<Alert>(ALERT_TAG));
+                new Sinks.CollectingSink<MissingOrderId>(GAP_TAG)
+        );
 
         pipeline.run();
     }
