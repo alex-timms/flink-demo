@@ -1,12 +1,12 @@
 package config;
 
-import duplicateDetection.config.ConfigLoader;
+import demo.flink.config.ConfigLoader;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 
-import static duplicateDetection.kafka.Sink.createKafkaSink;
-import static duplicateDetection.kafka.Source.createKafkaSourceBuilder;
+import static demo.flink.kafka.Sink.createKafkaSink;
+import static demo.flink.kafka.Source.createKafkaSourceBuilder;
 
 public class KafkaConfig {
 

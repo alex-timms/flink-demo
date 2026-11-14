@@ -170,6 +170,25 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>3.6.0</version>
+				<configuration>
+					<configLocation>src/main/resources/checkstyle.xml</configLocation>
+					<failsOnError>true</failsOnError>
+					<consoleOutput>true</consoleOutput>
+					<outputFile>${project.build.directory}/checkstyle/checkstyle-report.xml</outputFile>
+				</configuration>
+				<executions>
+					<execution>
+						<phase>validate</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 
 			<!-- Java Compiler -->
 			<plugin>
@@ -218,7 +237,7 @@
 							</filters>
 							<transformers>
 								<transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-									<mainClass>duplicateDetection.jobs.SequenceValidationJob</mainClass>
+									<mainClass>demo.flink.jobs.SequenceValidationJob</mainClass>
 								</transformer>
 							</transformers>
 						</configuration>

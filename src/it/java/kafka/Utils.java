@@ -1,8 +1,8 @@
 package kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import duplicateDetection.config.ObjectMapperConfig;
-import duplicateDetection.object.Order;
+import demo.flink.config.ObjectMapperConfig;
+import demo.flink.object.Order;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

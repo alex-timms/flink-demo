@@ -1,10 +1,10 @@
 import config.KafkaConfig;
-import duplicateDetection.Pipeline;
-import duplicateDetection.common.enums.Side;
-import duplicateDetection.common.records.DeadLetterRecord;
-import duplicateDetection.common.records.MissingOrderId;
-import duplicateDetection.config.ConfigLoader;
-import duplicateDetection.object.Order;
+import demo.flink.Pipeline;
+import demo.flink.common.enums.Side;
+import demo.flink.common.records.DeadLetterRecord;
+import demo.flink.common.records.MissingOrderId;
+import demo.flink.config.ConfigLoader;
+import demo.flink.object.Order;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
