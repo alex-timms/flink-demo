@@ -1,6 +1,9 @@
 package duplicateDetection.processor;
 
 import duplicateDetection.common.records.DeadLetterRecord;
+import duplicateDetection.common.records.MissingOrderId;
+import duplicateDetection.exceptions.DuplicateOrderIdException;
+import duplicateDetection.exceptions.InvalidOrderIdException;
 import duplicateDetection.object.Order;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.MapState;
@@ -11,7 +14,7 @@ import org.apache.flink.walkthrough.common.entity.Alert;
 
 import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
-public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Alert> {
+public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Order> {
 
 	private static final long serialVersionUID = 1L;
 
@@ -31,11 +34,11 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 	public void processElement(
 			Order order,
 			Context context,
-			Collector<Alert> collector) throws Exception {
+			Collector<Order> collector) {
 
 		try {
 			if (order.getOrderId() == 0) {
-				throw new Exception("Order ID is 0");
+				throw new InvalidOrderIdException("0");
 			}
 			// Get the current state for the current key
 			Boolean seenTransaction = flagState.get(order.getOrderId());
@@ -43,19 +46,12 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 			// Check if the flag is set
 			if (seenTransaction != null) {
 				if (seenTransaction) {
-					// Output an alert downstream
 					System.out.printf("Duplicate detected for order %d\n", order.getOrderId());
-					Alert alert = new Alert();
-					alert.setId(order.getOrderId());
-					collector.collect(alert);
+					throw new DuplicateOrderIdException();
 				}
 			} else {
-				System.out.println("Processing Order and adding new order to cache: " + order);
 				flagState.put(order.getOrderId(), true);
-				// Output an alert downstream
-				Alert alert = new Alert();
-				alert.setId(0L);
-				collector.collect(alert);
+				collector.collect(order);
 			}
 		} catch (Exception e) {
 			DeadLetterRecord dlqRecord = new DeadLetterRecord(
@@ -65,6 +61,5 @@ public class DuplicateDetector extends KeyedProcessFunction<Integer, Order, Aler
 			);
 			context.output(DLQ_TAG,  dlqRecord);
 		}
-
 	}
 }

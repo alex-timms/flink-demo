@@ -1,6 +1,7 @@
 package duplicateDetection;
 
 import duplicateDetection.common.records.DeadLetterRecord;
+import duplicateDetection.common.records.MissingOrderId;
 import duplicateDetection.object.Order;
 import duplicateDetection.processor.DeserializeProcessor;
 import duplicateDetection.processor.DuplicateDetector;
@@ -14,6 +15,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.walkthrough.common.entity.Alert;
 
 import static duplicateDetection.common.tags.Tags.DLQ_TAG;
+import static duplicateDetection.common.tags.Tags.GAP_TAG;
 
 public class Pipeline {
 
@@ -21,14 +23,14 @@ public class Pipeline {
     private final StreamExecutionEnvironment env;
     private final Sink<Order> mainSink;
     private final Sink<DeadLetterRecord> dlqSink;
-    private final Sink<Alert> alertSink;
+    private final Sink<MissingOrderId> gapSink;
 
-    public Pipeline(Source<String, ?, ?> raw, StreamExecutionEnvironment env, Sink<Order> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<Alert> alertSink){
+    public Pipeline(Source<String, ?, ?> raw, StreamExecutionEnvironment env, Sink<Order> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<MissingOrderId> gapSink){
         this.raw = raw;
         this.env = env;
         this.mainSink = mainSink;
         this.dlqSink = dlqSink;
-        this.alertSink = alertSink;
+        this.gapSink = gapSink;
     }
 
     public void run() throws Exception {
@@ -41,9 +43,15 @@ public class Pipeline {
 
         SingleOutputStreamOperator<Order> transactions = rawtransactions
                 .process(new DeserializeProcessor())
-                .name("deserializer");
+                .name("deserializer")
+                .setParallelism(1);
 
-        SingleOutputStreamOperator<Order> orders = transactions
+        SingleOutputStreamOperator<Order> dedupeTransactions = transactions
+                .keyBy(Order::getInstrumentId)
+                .process(new DuplicateDetector())
+                .name("duplicate-detector");
+
+        SingleOutputStreamOperator<Order> orders = dedupeTransactions
                 .keyBy(Order::getInstrumentId)
                 .process(new GapDetector())
                 .name("gap-detector");
@@ -51,18 +59,10 @@ public class Pipeline {
         orders.sinkTo(mainSink)
                 .name("order-sink");
 
-        SingleOutputStreamOperator<Alert> alerts = orders
-                .keyBy(Order::getInstrumentId)
-                .process(new DuplicateDetector())
-                .name("duplicate-detector");
-
-        alerts.sinkTo(alertSink)
-                .name("send-alerts");
-
-        DataStream<DeadLetterRecord> dlqStream = alerts.getSideOutput(DLQ_TAG);
+        DataStream<DeadLetterRecord> dlqStream = dedupeTransactions.getSideOutput(DLQ_TAG);
         dlqStream.sinkTo(dlqSink).name("DLQ-Sink");
-        DataStream<DeadLetterRecord> gapStream = orders.getSideOutput(DLQ_TAG);
-        gapStream.sinkTo(dlqSink).name("GAP-Sink");
+        DataStream<MissingOrderId> gapStream = orders.getSideOutput(GAP_TAG);
+        gapStream.sinkTo(gapSink).name("GAP-Sink");
 
         env.execute("sequence-validation-pipeline");
     }

@@ -27,6 +27,7 @@ import duplicateDetection.processor.GapDetector;
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.utils.OrderSource;
 import duplicateDetection.object.Order;
+import duplicateDetection.sinks.MissingOrderIdSink;
 import duplicateDetection.sinks.OrderSink;
 import duplicateDetection.sinks.SuccessSink;
 import duplicateDetection.sinks.DLQSink;
@@ -63,7 +64,7 @@ public class SequenceValidationJob {
         var kafkaSource = KafkaConfig.kafkaSource();
         var kafkaSink = KafkaConfig.kafkaSink();
 
-        Pipeline pipeline = new Pipeline(kafkaSource, env, new OrderSink(), new DLQSink(), new SuccessSink());
+        Pipeline pipeline = new Pipeline(kafkaSource, env, new OrderSink(), new DLQSink(), new MissingOrderIdSink());
         pipeline.run();
 
     }

@@ -10,6 +10,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import static duplicateDetection.common.tags.Tags.DLQ_TAG;
+import static duplicateDetection.common.tags.Tags.GAP_TAG;
 
 public class GapDetector extends KeyedProcessFunction<Integer, Order, Order> {
 
@@ -39,14 +40,14 @@ public class GapDetector extends KeyedProcessFunction<Integer, Order, Order> {
 			}
 			var currentID = order.getOrderId();
 			if (previousID + 1 != currentID) {
-				MissingOrderId missingOrderId = new MissingOrderId(previousID + 1 , order.getInstrumentId());
-				// Output an alert downstream
-				DeadLetterRecord dlqRecord = new DeadLetterRecord(
-						missingOrderId.toString(),
-						"MissingOrderIdException",
-						System.currentTimeMillis()
-				);
-				context.output(DLQ_TAG,  dlqRecord);
+				for (int i = Math.toIntExact(previousID + 1); i < currentID; i++) {
+					// Output an alert downstream
+					MissingOrderId missingRecord = new MissingOrderId(
+							i,
+							order.getInstrumentId()
+					);
+					context.output(GAP_TAG,  missingRecord);
+				}
 			}
 			lastIdValueState.update(currentID);
 			collector.collect(order);

@@ -1,6 +1,7 @@
 import duplicateDetection.Pipeline;
 import duplicateDetection.common.enums.Side;
 import duplicateDetection.common.records.DeadLetterRecord;
+import duplicateDetection.common.records.MissingOrderId;
 import duplicateDetection.object.Order;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
@@ -26,6 +27,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+import static duplicateDetection.common.tags.Tags.GAP_TAG;
 import static kafka.Admin.createAdminClient;
 import static kafka.Consumer.kafkaConsumer;
 import static kafka.Container.createKafkaContainer;
@@ -42,7 +44,7 @@ import static source.Sources.stringKafkaSource;
 class SequenceValidationJobIT {
 
     private static final String ORDERS_TAG = "ORDERS";
-    private static final String ALERT_TAG = "ALERT";
+    private static final String GAP_TAG = "GAP";
     private static final String DLQ_TAG = "DLQ";
 
     @Container
@@ -84,7 +86,12 @@ class SequenceValidationJobIT {
     void removesDuplicatesAndReportsGaps() throws Exception {
         //given
         var orders = List.of(order(1), order(2), order(2), order(4));
-
+        var expectedGap = new MissingOrderId(3, 1);
+        var expectedDuplicate = new DeadLetterRecord(
+                order(2).toString(),
+                "Duplicate order ID found",
+                System.currentTimeMillis()
+        );
         // when
         produceOrders(kafkaProducer, inputTopic, orders);
         runJob();
@@ -99,18 +106,24 @@ class SequenceValidationJobIT {
                 .stream()
                 .map(DeadLetterRecord.class::cast)
                 .toList();
+        List<MissingOrderId> gaps = Sinks.CollectingSink.results(GAP_TAG)
+                .stream()
+                .map(MissingOrderId.class::cast)
+                .toList();
         assertThat(output)
                 .usingRecursiveFieldByFieldElementComparator()
-                .containsExactlyInAnyOrderElementsOf(List.of(order(1), order(2), order(2), order(4)));
-        assertThat(dlq)
+                .containsExactlyInAnyOrderElementsOf(List.of(order(1), order(2), order(4)));
+        assertThat(gaps)
                 .isNotEmpty()
-                .allMatch(record -> "MissingOrderIdException".equals(record.errorMessage()));
-        List<Alert> alerts = Sinks.CollectingSink.results(ALERT_TAG)
-                .stream()
-                .map(Alert.class::cast)
-                .toList();
-        assertEquals(4, alerts.size());
-        assertEquals(1, alerts.stream().filter(alert -> alert.getId() == 2L).count());
+                .hasSize(1)
+                .isEqualTo(List.of(expectedGap));
+        assertThat(dlq)
+                .hasSize(1);
+        var dlqMessage =  dlq.getFirst();
+        assertThat(dlqMessage.errorMessage())
+                .isEqualTo(expectedDuplicate.errorMessage());
+        assertThat(dlqMessage.rawPayload())
+                .isEqualTo(expectedDuplicate.rawPayload());
     }
 
     // ---- Run the Flink job against the containerised Kafka ----
@@ -127,7 +140,8 @@ class SequenceValidationJobIT {
                 env,
                 new Sinks.CollectingSink<Order>(ORDERS_TAG),
                 new Sinks.CollectingSink<DeadLetterRecord>(DLQ_TAG),
-                new Sinks.CollectingSink<Alert>(ALERT_TAG));
+                new Sinks.CollectingSink<MissingOrderId>(GAP_TAG)
+        );
 
         pipeline.run();
     }

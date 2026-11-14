@@ -28,7 +28,7 @@ public class DuplicateDetectorTest {
         DuplicateDetector detector = new DuplicateDetector();
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Alert> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -43,10 +43,11 @@ public class DuplicateDetectorTest {
 
             // Assert outputs
             var output = testHarness.extractOutputValues();
-
             assertThat(output.size()).isEqualTo(3);
-            for (Alert alert : output) {
-                assertThat(alert.getId()).isEqualTo(0);
+            var initID = 1L;
+            for (Order order : output) {
+                assertThat(order.getOrderId()).isEqualTo(initID);
+                initID++;
             }
 
         }
@@ -56,9 +57,10 @@ public class DuplicateDetectorTest {
     @Test
     void test_processElement_Dupe() {
         DuplicateDetector detector = new DuplicateDetector();
+        Order order = new Order(1L, 1, Side.SELL, 10_000, 100);
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Alert> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -66,27 +68,39 @@ public class DuplicateDetectorTest {
                      )) {
 
             // Send test elements with timestamps
-            testHarness.processElement(new Order(1L, 1, Side.SELL, 10_000, 100), 1000L);
-            testHarness.processElement(new Order(1L, 1, Side.SELL, 10_000, 100), 1000L);
+            testHarness.processElement(order, 1000L);
+            testHarness.processElement(order, 1000L);
 
-            // Assert outputs
+            // Assert published outputs
             var output = testHarness.extractOutputValues();
-            // assertEquals(...);
-            assertThat(output.size()).isEqualTo(2);
-            var alertOne = output.get(0);
-            var alertTwo = output.get(1);
-            assertThat(alertOne.getId()).isEqualTo(0);
-            assertThat(alertTwo.getId()).isEqualTo(1);
+            assertThat(output.size()).isEqualTo(1);
+            var outputOrder = output.getFirst();
+            assertThat(outputOrder.getOrderId()).isEqualTo(1);
+
+            // Assert DLQ record
+            ConcurrentLinkedQueue<StreamRecord<DeadLetterRecord>> dlqOutput = testHarness.getSideOutput(DLQ_TAG);
+
+            assertNotNull(dlqOutput, "DLQ side output queue should not be null");
+            assertEquals(1, dlqOutput.size(), "Exactly one record should be routed to DLQ");
+
+            DeadLetterRecord dlqRecord = dlqOutput.poll().getValue();
+            assertThat(dlqRecord.rawPayload()).isEqualTo(order.toString());
+            assertThat(dlqRecord.errorMessage())
+                    .isNotEmpty()
+                    .isEqualTo("Duplicate order ID found");
+            assertThat(dlqRecord.failureTimestamp()).isNotNull();
         }
     }
 
     @SneakyThrows
     @Test
-    void test_processElement_DLQ() {
+    void test_processElement_InvalidOrderId() {
         DuplicateDetector detector = new DuplicateDetector();
+        Order orderZero = new Order(0, 1, Side.SELL, 10_000, 100);
+        Order orderOne = new Order(1L, 1, Side.SELL, 10_000, 100);
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Alert> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -94,15 +108,14 @@ public class DuplicateDetectorTest {
                      )) {
 
             // Send test elements with timestamps
-            testHarness.processElement(new Order(0L, 1, Side.SELL, 10_000, 100), 1000L);
-            testHarness.processElement(new Order(1L, 1, Side.SELL, 10_000, 100), 1000L);
+            testHarness.processElement(orderZero, 1000L);
+            testHarness.processElement(orderOne, 1000L);
 
             // Assert outputs
             var output = testHarness.extractOutputValues();
-            // assertEquals(...);
             assertThat(output.size()).isEqualTo(1);
-            var alertOne = output.getFirst();
-            assertThat(alertOne.getId()).isEqualTo(0);
+            var order = output.getFirst();
+            assertThat(order.getOrderId()).isEqualTo(1);
 
             ConcurrentLinkedQueue<StreamRecord<DeadLetterRecord>> dlqOutput = testHarness.getSideOutput(DLQ_TAG);
 
@@ -110,8 +123,11 @@ public class DuplicateDetectorTest {
             assertEquals(1, dlqOutput.size(), "Exactly one record should be routed to DLQ");
 
             DeadLetterRecord dlqRecord = dlqOutput.poll().getValue();
-//            assertTrue(dlqRecord.rawPayload().contains("Order: 0"));
-            assertNotNull(dlqRecord.errorMessage());
+            assertThat(dlqRecord.rawPayload()).isEqualTo(orderZero.toString());
+            assertThat(dlqRecord.errorMessage())
+                    .isNotEmpty()
+                    .isEqualTo("Invalid order ID found: 0");
+            assertThat(dlqRecord.failureTimestamp()).isNotNull();
         }
     }
 }
