@@ -3,8 +3,12 @@ package kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import duplicateDetection.config.ObjectMapperConfig;
 import duplicateDetection.object.Order;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -17,6 +21,7 @@ public class Utils {
     public static List<Order> consumeKafkaOrders(KafkaConsumer<String, String> kafkaConsumer, int expected, String outputTopic) throws Exception {
         return consumeKafkaOrders(kafkaConsumer, expected, Duration.ofSeconds(3), outputTopic);
     }
+
     public static List<Order> consumeKafkaOrders(KafkaConsumer<String, String> kafkaConsumer, int expected, Duration timeout, String outputTopic) throws Exception {
         List<Order> received = new ArrayList<>();
         long deadline = System.nanoTime() + timeout.toNanos();
@@ -33,5 +38,19 @@ public class Utils {
         }
 
         return received;
+    }
+
+    public static void produceOrders(KafkaProducer<String, String> kafkaProducer, String topic, List<Order> orders) throws Exception {
+        for (Order order : orders) {
+            kafkaProducer.send(new ProducerRecord<>(topic, MAPPER.writeValueAsString(order)));
+        }
+        kafkaProducer.flush();
+    }
+
+    public static void createTopics(AdminClient admin, List<String> topics) {
+        var topicConfig = topics.stream()
+                .map(topic -> new NewTopic(topic, 1, (short) 1))
+                .toList();
+        admin.createTopics(topicConfig);
     }
 }
