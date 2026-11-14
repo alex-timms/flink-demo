@@ -21,11 +21,11 @@ public class Pipeline {
 
     private final Source<String, ?, ?> raw;
     private final StreamExecutionEnvironment env;
-    private final Sink<Order> mainSink;
+    private final Sink<String> mainSink;
     private final Sink<DeadLetterRecord> dlqSink;
     private final Sink<MissingOrderId> gapSink;
 
-    public Pipeline(Source<String, ?, ?> raw, StreamExecutionEnvironment env, Sink<Order> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<MissingOrderId> gapSink){
+    public Pipeline(Source<String, ?, ?> raw, StreamExecutionEnvironment env, Sink<String> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<MissingOrderId> gapSink){
         this.raw = raw;
         this.env = env;
         this.mainSink = mainSink;
@@ -51,7 +51,7 @@ public class Pipeline {
                 .process(new DuplicateDetector())
                 .name("duplicate-detector");
 
-        SingleOutputStreamOperator<Order> orders = dedupeTransactions
+        SingleOutputStreamOperator<String> orders = dedupeTransactions
                 .keyBy(Order::getInstrumentId)
                 .process(new GapDetector())
                 .name("gap-detector");

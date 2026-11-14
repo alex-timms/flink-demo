@@ -1,6 +1,5 @@
 package duplicateDetection.processor;
 
-import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.records.MissingOrderId;
 import duplicateDetection.object.Order;
 import org.apache.flink.api.common.functions.OpenContext;
@@ -9,10 +8,9 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 import static duplicateDetection.common.tags.Tags.GAP_TAG;
 
-public class GapDetector extends KeyedProcessFunction<Integer, Order, Order> {
+public class GapDetector extends KeyedProcessFunction<Integer, Order, String> {
 
 	private static final long serialVersionUID = 1L;
 
@@ -32,7 +30,7 @@ public class GapDetector extends KeyedProcessFunction<Integer, Order, Order> {
 	public void processElement(
 			Order order,
 			Context context,
-			Collector<Order> collector) throws Exception {
+			Collector<String> collector) throws Exception {
 
 			var previousID = lastIdValueState.value();
 			if (previousID == null) {
@@ -50,7 +48,7 @@ public class GapDetector extends KeyedProcessFunction<Integer, Order, Order> {
 				}
 			}
 			lastIdValueState.update(currentID);
-			collector.collect(order);
+			collector.collect(order.toString());
 		};
 
 }

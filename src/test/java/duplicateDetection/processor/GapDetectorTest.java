@@ -1,8 +1,10 @@
 package duplicateDetection.processor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import duplicateDetection.common.enums.Side;
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.records.MissingOrderId;
+import duplicateDetection.config.ObjectMapperConfig;
 import duplicateDetection.object.Order;
 import lombok.SneakyThrows;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -23,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class GapDetectorTest {
 
+    ObjectMapper mapper = ObjectMapperConfig.objectMapper();
 
     @SneakyThrows
     @Test
@@ -30,7 +33,7 @@ public class GapDetectorTest {
         GapDetector detector = new GapDetector();
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, String> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -48,8 +51,8 @@ public class GapDetectorTest {
 
             assertThat(output.size()).isEqualTo(3);
             var orderID = 1L;
-            for (Order order : output) {
-                assertThat(order.getOrderId()).isEqualTo(orderID);
+            for (String order : output) {
+                assertThat(mapper.readValue(order, Order.class).getOrderId()).isEqualTo(orderID);
                 orderID++;
             }
 
@@ -64,7 +67,7 @@ public class GapDetectorTest {
         var missingOrder = new MissingOrderId(2L, 1);
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, String> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -77,12 +80,11 @@ public class GapDetectorTest {
 
             // Assert outputs
             var output = testHarness.extractOutputValues();
-            // assertEquals(...);
             assertThat(output.size()).isEqualTo(2);
             var orderOne = output.getFirst();
-            assertThat(orderOne.getOrderId()).isEqualTo(1);
+            assertThat(mapper.readValue(orderOne, Order.class).getOrderId()).isEqualTo(1);
             var orderTwo = output.getLast();
-            assertThat(orderTwo.getOrderId()).isEqualTo(3);
+            assertThat(mapper.readValue(orderTwo, Order.class).getOrderId()).isEqualTo(3);
 
             ConcurrentLinkedQueue<StreamRecord<MissingOrderId>> gapOutput = testHarness.getSideOutput(GAP_TAG);
 
@@ -103,7 +105,7 @@ public class GapDetectorTest {
         var missingOrder = new MissingOrderId(2L, 1);
 
         // Automatically initializes RuntimeContext, state backend, and calls open()
-        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, Order> testHarness =
+        try (KeyedOneInputStreamOperatorTestHarness<Integer, Order, String> testHarness =
                      ProcessFunctionTestHarnesses.forKeyedProcessFunction(
                              detector,
                              Order::getInstrumentId, // KeySelector
@@ -119,9 +121,9 @@ public class GapDetectorTest {
             // assertEquals(...);
             assertThat(output.size()).isEqualTo(2);
             var orderOne = output.getFirst();
-            assertThat(orderOne.getOrderId()).isEqualTo(1);
+            assertThat(mapper.readValue(orderOne, Order.class).getOrderId()).isEqualTo(1);
             var orderTwo = output.getLast();
-            assertThat(orderTwo.getOrderId()).isEqualTo(5);
+            assertThat(mapper.readValue(orderTwo, Order.class).getOrderId()).isEqualTo(5);
 
             ConcurrentLinkedQueue<StreamRecord<MissingOrderId>> gapOutput = testHarness.getSideOutput(GAP_TAG);
 

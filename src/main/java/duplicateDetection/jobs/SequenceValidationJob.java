@@ -64,7 +64,7 @@ public class SequenceValidationJob {
         var kafkaSource = KafkaConfig.kafkaSource();
         var kafkaSink = KafkaConfig.kafkaSink();
 
-        Pipeline pipeline = new Pipeline(kafkaSource, env, new OrderSink(), new DLQSink(), new MissingOrderIdSink());
+        Pipeline pipeline = new Pipeline(kafkaSource, env, kafkaSink, new DLQSink(), new MissingOrderIdSink());
         pipeline.run();
 
     }

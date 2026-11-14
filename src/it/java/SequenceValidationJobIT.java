@@ -32,11 +32,13 @@ import static kafka.Admin.createAdminClient;
 import static kafka.Consumer.kafkaConsumer;
 import static kafka.Container.createKafkaContainer;
 import static kafka.Producer.kafkaProducer;
+import static kafka.Utils.consumeKafkaOrders;
 import static kafka.Utils.createTopics;
 import static kafka.Utils.produceOrders;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static sink.Sinks.stringKafkaSink;
 import static source.Sources.stringKafkaSource;
 
 @Slf4j
@@ -97,9 +99,8 @@ class SequenceValidationJobIT {
         runJob();
 
         // then
-        List<Order> output = Sinks.CollectingSink.results(ORDERS_TAG)
+        List<Order> output = consumeKafkaOrders(kafkaConsumer, 3, outputTopic)
                 .stream()
-                .map(Order.class::cast)
                 .sorted(Comparator.comparingLong(Order::getOrderId))
                 .toList();
         List<DeadLetterRecord> dlq = Sinks.CollectingSink.results(DLQ_TAG)
@@ -133,12 +134,13 @@ class SequenceValidationJobIT {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // setup source
         KafkaSource<String> source = stringKafkaSource(KAFKA.getBootstrapServers(), inputTopic);
+        KafkaSink<String> sink = stringKafkaSink(KAFKA.getBootstrapServers(), outputTopic);
 
         // setup Pipeline with every sink injected,
         var pipeline = new Pipeline(
                 source,
                 env,
-                new Sinks.CollectingSink<Order>(ORDERS_TAG),
+                sink,
                 new Sinks.CollectingSink<DeadLetterRecord>(DLQ_TAG),
                 new Sinks.CollectingSink<MissingOrderId>(GAP_TAG)
         );
