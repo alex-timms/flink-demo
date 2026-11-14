@@ -1,17 +1,14 @@
+import config.KafkaConfig;
 import duplicateDetection.Pipeline;
 import duplicateDetection.common.enums.Side;
 import duplicateDetection.common.records.DeadLetterRecord;
 import duplicateDetection.common.records.MissingOrderId;
+import duplicateDetection.config.ConfigLoader;
 import duplicateDetection.object.Order;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.connector.base.DeliveryGuarantee;
-import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
 import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
-import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.walkthrough.common.entity.Alert;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -25,9 +22,7 @@ import sink.Sinks;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
-import static duplicateDetection.common.tags.Tags.GAP_TAG;
 import static kafka.Admin.createAdminClient;
 import static kafka.Consumer.kafkaConsumer;
 import static kafka.Container.createKafkaContainer;
@@ -36,10 +31,6 @@ import static kafka.Utils.consumeKafkaOrders;
 import static kafka.Utils.createTopics;
 import static kafka.Utils.produceOrders;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static sink.Sinks.stringKafkaSink;
-import static source.Sources.stringKafkaSource;
 
 @Slf4j
 @Testcontainers
@@ -61,9 +52,8 @@ class SequenceValidationJobIT {
 
     @BeforeEach
     void setUp() throws Exception {
-        String suffix = UUID.randomUUID().toString();
-        inputTopic = "orders-in-" + suffix;
-        outputTopic = "orders-out-" + suffix;
+        inputTopic = ConfigLoader.get("inputTopic");
+        outputTopic = ConfigLoader.get("outputTopic");
 
         kafkaConsumer = kafkaConsumer(KAFKA.getBootstrapServers());
         kafkaProducer = kafkaProducer(KAFKA.getBootstrapServers());
@@ -76,6 +66,7 @@ class SequenceValidationJobIT {
     void shutDown() {
         Sinks.CollectingSink.clear();
         try {
+            adminClient.deleteTopics(List.of(inputTopic, outputTopic));
             kafkaConsumer.close();
             kafkaProducer.close();
             adminClient.close();
@@ -133,8 +124,8 @@ class SequenceValidationJobIT {
         // setup env
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // setup source
-        KafkaSource<String> source = stringKafkaSource(KAFKA.getBootstrapServers(), inputTopic);
-        KafkaSink<String> sink = stringKafkaSink(KAFKA.getBootstrapServers(), outputTopic);
+        KafkaSource<String> source = KafkaConfig.kafkaSource(KAFKA.getBootstrapServers());
+        KafkaSink<String> sink = KafkaConfig.kafkaSink(KAFKA.getBootstrapServers());
 
         // setup Pipeline with every sink injected,
         var pipeline = new Pipeline(

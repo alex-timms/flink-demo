@@ -1,15 +1,8 @@
 package sink;
 
-import duplicateDetection.object.Order;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.api.connector.sink2.WriterInitContext;
-import org.apache.flink.connector.base.DeliveryGuarantee;
-import org.apache.flink.connector.kafka.sink.KafkaRecordSerializationSchema;
-import org.apache.flink.connector.kafka.sink.KafkaSink;
-import org.apache.flink.connector.kafka.source.KafkaSource;
-import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 
 import java.util.List;
 import java.util.Map;
@@ -60,16 +53,4 @@ public class Sinks {
             };
         }
     }
-
-    public static KafkaSink<String> stringKafkaSink(String bootstrap, String topic) {
-        return KafkaSink.<String>builder()
-                .setBootstrapServers(bootstrap)
-                .setRecordSerializer(KafkaRecordSerializationSchema.builder()
-                        .setTopic(topic)
-                        .setValueSerializationSchema(new SimpleStringSchema())
-                        .build())
-                .setDeliveryGuarantee(DeliveryGuarantee.AT_LEAST_ONCE)
-                .build();
-    }
-
 }

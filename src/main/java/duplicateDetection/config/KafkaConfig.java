@@ -4,15 +4,22 @@ import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 
 import static duplicateDetection.kafka.Sink.createKafkaSink;
-import static duplicateDetection.kafka.Source.createKafkaSource;
+import static duplicateDetection.kafka.Source.createKafkaSourceBuilder;
 
 public class KafkaConfig {
 
     public static KafkaSource<String> kafkaSource() {
-        return createKafkaSource("broker", "topic", "groupId");
+        return createKafkaSourceBuilder(
+                ConfigLoader.get("broker"),
+                ConfigLoader.get("inputTopic"),
+                ConfigLoader.get("groupId")
+        ).build();
     }
 
     public static KafkaSink<String> kafkaSink() {
-        return createKafkaSink("broker", "topic");
+        return createKafkaSink(
+                ConfigLoader.get("broker"),
+                ConfigLoader.get("outputTopic")
+        );
     }
 }
