@@ -14,7 +14,7 @@ A small, non-production Apache Flink project that validates a stream of orders. 
 | Deserialisation processor (JSON string to `Order`)      | Done    |
 | Integration test around the full pipeline               | Done    |
 | Kafka sink (deduplicated orders to an output topic)     | Planned |
-| Restructure Job to deduplicate identifying gaps         | Planned |
+| Restructure Job to deduplicate before identifying gaps  | Planned |
 | Second job consuming the output feed and aggregating    | Planned |
 
 ## Current functionality

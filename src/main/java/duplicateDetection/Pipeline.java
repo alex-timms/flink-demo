@@ -7,7 +7,7 @@ import duplicateDetection.processor.DuplicateDetector;
 import duplicateDetection.processor.GapDetector;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.connector.sink2.Sink;
-import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.api.connector.source.Source;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -17,13 +17,13 @@ import static duplicateDetection.common.tags.Tags.DLQ_TAG;
 
 public class Pipeline {
 
-    private final KafkaSource<String> raw;
+    private final Source<String, ?, ?> raw;
     private final StreamExecutionEnvironment env;
     private final Sink<Order> mainSink;
     private final Sink<DeadLetterRecord> dlqSink;
     private final Sink<Alert> alertSink;
 
-    public Pipeline(KafkaSource<String> raw, StreamExecutionEnvironment env, Sink<Order> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<Alert> alertSink){
+    public Pipeline(Source<String, ?, ?> raw, StreamExecutionEnvironment env, Sink<Order> mainSink, Sink<DeadLetterRecord> dlqSink, Sink<Alert> alertSink){
         this.raw = raw;
         this.env = env;
         this.mainSink = mainSink;
