@@ -36,7 +36,6 @@ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 @Testcontainers
 class SequenceValidationJobIT {
 
-    private static final String ORDERS_TAG = "ORDERS";
     private static final String GAP_TAG = "GAP";
     private static final String DLQ_TAG = "DLQ";
 
