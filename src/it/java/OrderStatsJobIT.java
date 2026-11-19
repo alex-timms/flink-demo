@@ -1,5 +1,5 @@
 import config.KafkaConfig;
-import demo.flink.MetricsPipeline;
+import demo.flink.OrderStatsPipeline;
 import demo.flink.config.ConfigLoader;
 import demo.flink.object.OrderStats;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 @Slf4j
 @Testcontainers
-class MetricsJobIT {
+class OrderStatsJobIT {
 
 
     @Container
@@ -110,7 +110,7 @@ class MetricsJobIT {
         Sink<OrderStats> sink = new Sinks.CollectingSink<>("main");
 
         // setup Pipeline with every sink injected,
-        var pipeline = new MetricsPipeline(
+        var pipeline = new OrderStatsPipeline(
                 source,
                 env,
                 sink

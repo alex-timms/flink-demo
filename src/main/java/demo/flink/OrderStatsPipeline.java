@@ -16,13 +16,13 @@ import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindo
 import java.time.Duration;
 
 
-public class MetricsPipeline {
+public class OrderStatsPipeline {
 
     private final Source<String, ?, ?> raw;
     private final StreamExecutionEnvironment env;
     private final Sink<OrderStats> mainSink;
 
-    public MetricsPipeline(
+    public OrderStatsPipeline(
             Source<String, ?, ?> raw,
             StreamExecutionEnvironment env,
             Sink<OrderStats> mainSink
