@@ -49,7 +49,7 @@ public class Utils {
         kafkaProducer.flush();
     }
 
-    public static void produceStrings(KafkaProducer<String, String> kafkaProducer, String topic, List<String> orders, List<Long> timestamps) {
+    public static void produceStringsAtTimestamps(KafkaProducer<String, String> kafkaProducer, String topic, List<String> orders, List<Long> timestamps) {
 
         for (int i = 0; i < orders.size(); i++) {
             kafkaProducer.send(new ProducerRecord<>(topic, null, timestamps.get(i), null, orders.get(i)));

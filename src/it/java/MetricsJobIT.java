@@ -22,7 +22,7 @@ import static kafka.Admin.createAdminClient;
 import static kafka.Container.createKafkaContainer;
 import static kafka.Producer.kafkaProducer;
 import static kafka.Utils.createTopics;
-import static kafka.Utils.produceStrings;
+import static kafka.Utils.produceStringsAtTimestamps;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 @Slf4j
@@ -84,7 +84,7 @@ class MetricsJobIT {
         var firstOrderStats = new OrderStats(1795035600000L, 1795035660000L, 1, 2,   40, 101.5,   1_000_000, 1_020_000, 10, 30);
         var secondOrderStats = new OrderStats(1795035660000L, 1795035720000L, 1, 5,  100, 101.075,   990_000, 1_030_000, 35, 65);
         // when
-        produceStrings(kafkaProducer, inputTopic, orders, timestamps);
+        produceStringsAtTimestamps(kafkaProducer, inputTopic, orders, timestamps);
         runJob();
 
         // then

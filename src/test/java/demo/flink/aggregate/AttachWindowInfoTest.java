@@ -59,6 +59,7 @@ public class AttachWindowInfoTest {
                         1020000,
                         40,
                         0
-                        ));
+                        )
+        );
     }
 }
