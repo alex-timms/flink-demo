@@ -18,6 +18,7 @@ It is being built step by step to practise stateful stream processing, dead-lett
 | Kafka sink (deduplicated orders to an output topic)     | Done |
 | Restructure Job to deduplicate before identifying gaps  | Done |
 | Second job consuming the output feed and aggregating    | Done |
+| Add docker and local run instructions/config            | Planned |
 | Increase complexity of deduplication using state        | Planned |
 | Add deserialisation error handling                      | Planned |
 
