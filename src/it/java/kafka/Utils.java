@@ -49,16 +49,8 @@ public class Utils {
         kafkaProducer.flush();
     }
 
-    public static void produceStrings(KafkaProducer<String, String> kafkaProducer, String topic, List<String> orders) throws Exception {
-        List<Long> timestamps = List.of(
-                1795035605000L,  // order 1, 21:00:05, window 1
-                1795035635000L,  // order 2, 21:00:35, window 1
-                1795035662000L,  // order 3, 21:01:02, window 2
-                1795035675000L,  // order 4, 21:01:15, window 2
-                1795035690000L,  // order 5, 21:01:30, window 2
-                1795035705000L,  // order 6, 21:01:45, window 2
-                1795035718000L   // order 7, 21:01:58, window 2
-        );
+    public static void produceStrings(KafkaProducer<String, String> kafkaProducer, String topic, List<String> orders, List<Long> timestamps) {
+
         for (int i = 0; i < orders.size(); i++) {
             kafkaProducer.send(new ProducerRecord<>(topic, null, timestamps.get(i), null, orders.get(i)));
         }

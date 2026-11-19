@@ -1,19 +1,12 @@
 import config.KafkaConfig;
 import demo.flink.MetricsPipeline;
-import demo.flink.Pipeline;
-import demo.flink.common.enums.Side;
-import demo.flink.common.records.DeadLetterRecord;
-import demo.flink.common.records.MissingOrderId;
 import demo.flink.config.ConfigLoader;
-import demo.flink.object.Order;
 import demo.flink.object.OrderStats;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.connector.sink2.Sink;
-import org.apache.flink.connector.kafka.sink.KafkaSink;
 import org.apache.flink.connector.kafka.source.KafkaSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,16 +16,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import sink.Sinks;
 
-import java.util.Comparator;
 import java.util.List;
 
 import static kafka.Admin.createAdminClient;
-import static kafka.Consumer.kafkaConsumer;
 import static kafka.Container.createKafkaContainer;
 import static kafka.Producer.kafkaProducer;
-import static kafka.Utils.consumeKafkaOrders;
 import static kafka.Utils.createTopics;
-import static kafka.Utils.produceOrders;
 import static kafka.Utils.produceStrings;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
@@ -83,10 +72,19 @@ class MetricsJobIT {
                 "{\"orderId\":6,\"instrumentId\":1,\"side\":\"SELL\",\"price\":990000,\"leavesQty\":25}",
                 "{\"orderId\":7,\"instrumentId\":1,\"side\":\"BUY\",\"price\":1005000,\"leavesQty\":5}"
         );
+        List<Long> timestamps = List.of(
+                1795035605000L,  // order 1, 21:00:05, window 1
+                1795035635000L,  // order 2, 21:00:35, window 1
+                1795035662000L,  // order 3, 21:01:02, window 2
+                1795035675000L,  // order 4, 21:01:15, window 2
+                1795035690000L,  // order 5, 21:01:30, window 2
+                1795035705000L,  // order 6, 21:01:45, window 2
+                1795035718000L   // order 7, 21:01:58, window 2
+        );
         var firstOrderStats = new OrderStats(1795035600000L, 1795035660000L, 1, 2,   40, 101.5,   1_000_000, 1_020_000, 10, 30);
         var secondOrderStats = new OrderStats(1795035660000L, 1795035720000L, 1, 5,  100, 101.075,   990_000, 1_030_000, 35, 65);
         // when
-        produceStrings(kafkaProducer, inputTopic, orders);
+        produceStrings(kafkaProducer, inputTopic, orders, timestamps);
         runJob();
 
         // then
@@ -94,7 +92,7 @@ class MetricsJobIT {
                 .stream()
                 .map(OrderStats.class::cast)
                 .toList();
-        assertThat(stats).isNotEmpty();
+        assertThat(stats).isNotEmpty().hasSize(2);
         var firstOutput =  stats.get(0);
         var secondOutput = stats.get(1);
         assertThat(firstOutput).isEqualTo(firstOrderStats);
