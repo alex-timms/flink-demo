@@ -3,6 +3,7 @@ package kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import demo.flink.config.ObjectMapperConfig;
 import demo.flink.object.Order;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -14,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 public class Utils {
 
     private static final ObjectMapper MAPPER = ObjectMapperConfig.objectMapper();
@@ -43,6 +45,22 @@ public class Utils {
     public static void produceOrders(KafkaProducer<String, String> kafkaProducer, String topic, List<Order> orders) throws Exception {
         for (Order order : orders) {
             kafkaProducer.send(new ProducerRecord<>(topic, MAPPER.writeValueAsString(order)));
+        }
+        kafkaProducer.flush();
+    }
+
+    public static void produceStrings(KafkaProducer<String, String> kafkaProducer, String topic, List<String> orders) throws Exception {
+        List<Long> timestamps = List.of(
+                1795035605000L,  // order 1, 21:00:05, window 1
+                1795035635000L,  // order 2, 21:00:35, window 1
+                1795035662000L,  // order 3, 21:01:02, window 2
+                1795035675000L,  // order 4, 21:01:15, window 2
+                1795035690000L,  // order 5, 21:01:30, window 2
+                1795035705000L,  // order 6, 21:01:45, window 2
+                1795035718000L   // order 7, 21:01:58, window 2
+        );
+        for (int i = 0; i < orders.size(); i++) {
+            kafkaProducer.send(new ProducerRecord<>(topic, null, timestamps.get(i), null, orders.get(i)));
         }
         kafkaProducer.flush();
     }

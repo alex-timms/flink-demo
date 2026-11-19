@@ -36,7 +36,7 @@ public class MetricsPipeline {
         DataStream<String> rawOrders = env
                 .fromSource(
                         raw,
-                        WatermarkStrategy.noWatermarks(),
+                        WatermarkStrategy.forMonotonousTimestamps(),
                         "orders")
                 .setParallelism(1);
 
@@ -48,7 +48,7 @@ public class MetricsPipeline {
 
         SingleOutputStreamOperator<OrderStats> metrics = orders
                 .keyBy(Order::getInstrumentId)
-                .window(TumblingEventTimeWindows.of(Duration.ofSeconds(5)))
+                .window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)))
                 .aggregate(new OrderStatsAggregate(), new AttachWindowInfo());
 
         metrics.sinkTo(mainSink)

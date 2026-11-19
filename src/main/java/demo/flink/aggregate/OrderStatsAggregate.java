@@ -3,8 +3,10 @@ package demo.flink.aggregate;
 import demo.flink.accumulator.OrderStatsAccumulator;
 import demo.flink.common.enums.Side;
 import demo.flink.object.Order;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.functions.AggregateFunction;
 
+@Slf4j
 public class OrderStatsAggregate implements AggregateFunction<Order, OrderStatsAccumulator, OrderStatsAccumulator> {
     @Override
     public OrderStatsAccumulator createAccumulator() {
@@ -13,6 +15,7 @@ public class OrderStatsAggregate implements AggregateFunction<Order, OrderStatsA
 
     @Override
     public OrderStatsAccumulator add(Order value, OrderStatsAccumulator accumulator) {
+        log.warn("Adding order stats accumulator");
         long qty = value.getLeavesQty();
         accumulator.count++;
         accumulator.totalQty = Math.addExact(accumulator.totalQty, qty);

@@ -33,6 +33,7 @@ import static kafka.Producer.kafkaProducer;
 import static kafka.Utils.consumeKafkaOrders;
 import static kafka.Utils.createTopics;
 import static kafka.Utils.produceOrders;
+import static kafka.Utils.produceStrings;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 @Slf4j
@@ -73,9 +74,19 @@ class MetricsJobIT {
     @Test
     void removesDuplicatesAndReportsGaps() throws Exception {
         //given
-        var orders = List.of(order(1), order(2), order(2), order(4));
+        var orders = List.of(
+                "{\"orderId\":1,\"instrumentId\":1,\"side\":\"BUY\",\"price\":1000000,\"leavesQty\":10}",
+                "{\"orderId\":2,\"instrumentId\":1,\"side\":\"SELL\",\"price\":1020000,\"leavesQty\":30}",
+                "{\"orderId\":3,\"instrumentId\":1,\"side\":\"BUY\",\"price\":1000000,\"leavesQty\":20}",
+                "{\"orderId\":4,\"instrumentId\":1,\"side\":\"BUY\",\"price\":1010000,\"leavesQty\":10}",
+                "{\"orderId\":5,\"instrumentId\":1,\"side\":\"SELL\",\"price\":1030000,\"leavesQty\":40}",
+                "{\"orderId\":6,\"instrumentId\":1,\"side\":\"SELL\",\"price\":990000,\"leavesQty\":25}",
+                "{\"orderId\":7,\"instrumentId\":1,\"side\":\"BUY\",\"price\":1005000,\"leavesQty\":5}"
+        );
+        var firstOrderStats = new OrderStats(1795035600000L, 1795035660000L, 1, 2,   40, 101.5,   1_000_000, 1_020_000, 10, 30);
+        var secondOrderStats = new OrderStats(1795035660000L, 1795035720000L, 1, 5,  100, 101.075,   990_000, 1_030_000, 35, 65);
         // when
-        produceOrders(kafkaProducer, inputTopic, orders);
+        produceStrings(kafkaProducer, inputTopic, orders);
         runJob();
 
         // then
@@ -84,6 +95,10 @@ class MetricsJobIT {
                 .map(OrderStats.class::cast)
                 .toList();
         assertThat(stats).isNotEmpty();
+        var firstOutput =  stats.get(0);
+        var secondOutput = stats.get(1);
+        assertThat(firstOutput).isEqualTo(firstOrderStats);
+        assertThat(secondOutput).isEqualTo(secondOrderStats);
 
     }
 
@@ -104,9 +119,5 @@ class MetricsJobIT {
         );
 
         pipeline.run();
-    }
-
-    private static Order order(long id) {
-        return new Order(id, 1, Side.SELL, 10_000, 100); // placeholder constructor
     }
 }
